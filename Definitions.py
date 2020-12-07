@@ -2,7 +2,7 @@ from typing import List, Tuple
 import unittest
 import numpy as np
 from scipy.spatial import distance as dst
-
+# Hello
 class Product:
     def __init__(self, index, weight):
         self.index = index      # Product distinctive index
