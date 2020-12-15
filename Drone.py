@@ -63,6 +63,13 @@ class Drone:
     #     return {'__location': self.__location, '__inventory': self.__inventory, 'maxWeight': self.maxWeight,
     #             'task': self.task, '__droneTime': self.__droneTime}
 
+    ## __eq__ and __hash__ based on index, for using class as a hashing key
+    def __eq__(self, other):
+        return self.__index == other.__index
+
+    def __hash__(self):
+        return hash(self.__index)
+
     def refreshDroneStatus(self, time: int) -> None:
         """
         Refreshes the status of the drone at a given time, based on its current operation
@@ -208,7 +215,7 @@ class Drone:
 
 class TestDrone(unittest.TestCase):
     def setUp(self):
-        self.drone = Drone ([0, 0], 15)
+        self.drone = Drone ((0, 0), 15)
 
     def test_travel(self):
         pass
@@ -228,7 +235,7 @@ class TestDrone(unittest.TestCase):
         product1 = Product(2, 3)
         inventory.append(product0, 1)
         inventory.append(product1, 3)
-        self.drone = Drone([0, 0], 17, inventory = inventory)
+        self.drone = Drone((0, 0), 17, inventory = inventory)
         self.drone.unload(product1, 1, 1)
         self.assertEqual(self.drone.inventory(2).weight(), 11)
         self.drone.unload(product1, 1, 2)

@@ -4,10 +4,10 @@ from typing import Dict
 
 class Order(object):
     def __init__(self):
-        self._products = {}  # Dictionary for frequency of each product
+        self._products: Dict[Product, int] = {}  # Dictionary for frequency of each product
 
     def __repr__(self):
-        return {'products': self._products}
+        return repr((self._products))
 
     def __str__(self):
         ret = "Order: "
@@ -21,8 +21,17 @@ class Order(object):
     def __getitem__(self, product: Product):
         return self._products[product]
 
-    def clean(self) -> None:
-        self._products: Dict[Product, int] = {}
+    def __setitem__(self, product: Product, n: int):
+        self._products[product] = n
+
+    def __delitem__(self, product: Product):
+        del self._products[product]
+
+    def products(self) -> Dict[Product, int]:
+        return self._products
+
+    def clear(self) -> None:
+        self._products.clear()
 
     def append(self, product: Product, n: int) -> None:
         if n < 0:
@@ -59,7 +68,7 @@ class Inventory(Order):
         self.__weight = 0
 
     def __repr__(self):
-        return {'products': self._products, 'weight': self.__weight}
+        return repr((self._products, self.__weight))
 
     def __str__(self):
         ret = "Inventory: "
@@ -68,8 +77,8 @@ class Inventory(Order):
         ret += " total weight = " + str(self.__weight)
         return ret
 
-    def clean (self) -> None:
-        super().clean()
+    def clear (self) -> None:
+        super().clear()
         self.__weight = 0
 
     def append (self, product: Product, n: int) -> None:
@@ -90,7 +99,7 @@ class TestOrderInventory(unittest.TestCase):
     def test_append_to_inventory(self):
         product0 = Product(0, 5)
         product1 = Product(2, 3)
-        self.inventory.clean()
+        self.inventory.clear()
         self.inventory.append(product0, 3)
         self.inventory.append(product1, 1)
         print(self.inventory)

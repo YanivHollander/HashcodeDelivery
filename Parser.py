@@ -2,9 +2,11 @@ from Definitions import Product
 from OrderInventory import Inventory, Order
 from WarehouseCustomer import Warehouse, Customer
 import unittest
+from typing import List
+import matplotlib.pyplot as plt
 
 class Parser:
-    def __init__(self, inputFilename):
+    def __init__(self, inputFilename, mapFilename = None):
         f = open(inputFilename)
 
         ## Header
@@ -37,13 +39,13 @@ class Parser:
             self.warehouses.append(Warehouse((int(location[0]), int(location[1])), warehouseInventory, index = i))
 
         ## Orders
-        nOrders = int(f.readline())
-        self.customers = []
-        for i in range(nOrders):
+        self.nOrders = int(f.readline())
+        self.customers: List[Customer] = []
+        for i in range(self.nOrders):
             location = f.readline().split(' ')
             nItems = int(f.readline())
             items = f.readline().split(' ')
-            customerOrder = Order()
+            customerOrder = Inventory()
             for item in items:
                 products = [prod for prod in self.products if prod.index == int(item)]
                 if len(products) == 0:
@@ -52,10 +54,13 @@ class Parser:
             self.customers.append(Customer((int(location[0]), int(location[1])), customerOrder, index = i))
         f.close()
 
+        # Outputing a map
+        if mapFilename is not None:
+            self.__outputMap(mapFilename)
+
     def __repr__(self):
-        return {'nRows': self.nRows, 'nColumns': self.nColumns, 'nDrones': self.nDrones, 'nTurns': self.nTurns,
-                'maxPayload': self.maxPayload, 'products': self.products, 'warehouses': self.warehouses,
-                'customers': self.customers}
+        return repr((self.nRows, self.nColumns, self.nDrones, self.nTurns, self.maxPayload, self.products,
+                     self.warehouses, self.customers))
 
     def __str__ (self):
         products = ""
@@ -74,6 +79,21 @@ class Parser:
                 'Products\n' + '--------\n' + products +
                 'Warehouses\n' + '----------\n' + warehouses +
                 'Customers\n' + '---------\n' + customers)
+
+    def __outputMap(self, mapFilename):
+        x = []
+        y = []
+        for customer in self.customers:
+            x.append(customer.location()[0])
+            y.append(customer.location()[1])
+        plt.scatter(x, y)
+        x.clear()
+        y.clear()
+        for warehouse in self.warehouses:
+            x.append(warehouse.location()[0])
+            y.append(warehouse.location()[1])
+        plt.scatter(x, y, marker='x')
+        plt.savefig(mapFilename)
 
 class TestParser(unittest.TestCase):
     def setUp(self):

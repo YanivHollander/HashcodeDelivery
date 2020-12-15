@@ -50,19 +50,26 @@ class Delivery:
             return True
         return False
 
-    def setLoadMission(self, drone: Drone, warehouse: Warehouse, order: Order, time: int) -> None:
+    def mission(self, drone: Drone) -> MissionType:
+        if not self.isInMission(drone):
+            raise RuntimeError("Drone is not on a mission")
+        return self.__mission[drone].missionType
+
+    def setLoadMission(self, drone: Drone, warehouse: Warehouse, order: Inventory, time: int, book = True) -> None:
         """
         Set a loading mission for a drone
         :param drone:       Drone to set a mission
         :param warehouse:   Warehouse destination for loading
         :param order:       Order of products to load
         :param time:        Loading mission start time
+        :param book         Whether to book order at warehouse in advance for future supply
         :return:
         """
         if drone in self.__mission:
             raise RuntimeError("Drone is already in a mission")
         self.__mission[drone] = Mission(MissionType.Load, time, order, warehouse = warehouse)
-        warehouse.book(order)   # Book order at the warehouse to guarantee it will be there where the drone arrives
+        if book:
+            warehouse.book(order)   # Book order at the warehouse to guarantee it will be there where the drone arrives
         drone.refreshDroneStatus(time)      # Refresh drone status - sets drone clock to mission start time
 
     def load(self, drone: Drone, time: int) -> None:
@@ -82,7 +89,7 @@ class Delivery:
 
         ## Traveling phase
         if self.__mission[drone].travelPhase:
-            drone.travel(self.__mission[drone].warehouse.location, time)
+            drone.travel(self.__mission[drone].warehouse.location(), time)
             self.__mission[drone].travelPhase = False
         if drone.status(time) != DroneStatus.Idle:  # Return if drone hasn't reached its destination
             return
@@ -100,18 +107,21 @@ class Delivery:
         ## Mission complete
         del self.__mission[drone]
 
-    def setDeliverMission(self, drone: Drone, customer: Customer, order: Order, time: int) -> None:
+    def setDeliverMission(self, drone: Drone, customer: Customer, order: Inventory, time: int, book = True) -> None:
         """
         Set a deliver mission for a drone
         :param drone:       Drone to set a mission
         :param customer:    Customer to deliver products to
         :param order:       Order of products to load
         :param time:        Deliver mission start time
+        :param book         Whether to book order at customer in advance for future supply
         :return:
         """
         if drone in self.__mission:
             raise RuntimeError("Drone is already in a mission")
         self.__mission[drone] = Mission(MissionType.Deliver, time, order, customer = customer)
+        if book:
+            customer.book(order)    # Book order delivery with customer, to avoid providing same products more than once
         drone.refreshDroneStatus(time)      # Refresh drone status - sets drone clock to mission start time
 
     def deliver(self, drone: Drone, time: int) -> None:
@@ -131,7 +141,7 @@ class Delivery:
 
         ## Traveling phase
         if self.__mission[drone].travelPhase:
-            drone.travel(self.__mission[drone].customer.location, time)
+            drone.travel(self.__mission[drone].customer.location(), time)
             self.__mission[drone].travelPhase = False
         if drone.status(time) != DroneStatus.Idle:  # Return if drone hasn't reached its destination
             return
@@ -141,7 +151,7 @@ class Delivery:
             for product in self.__mission[drone].order:
                 nToDeliver = self.__mission[drone].order[product]
                 drone.unload(product, nToDeliver, time)
-                self.__mission[drone].customer.receive(product, nToDeliver)
+                self.__mission[drone].customer.remove(product, nToDeliver, considerBooking=True)
             self.__mission[drone].loadUnloadPhase = False
         if drone.status(time) != DroneStatus.Idle:  # Return if drone hasn't completed delivering
             return
@@ -150,7 +160,8 @@ class Delivery:
         del self.__mission[drone]
 
     def setLoadAndDeliverMission(
-            self, drone: Drone, warehouse: Warehouse, customer: Customer, order: Order, time: int) -> None:
+            self, drone: Drone, warehouse: Warehouse, customer: Customer, order: Inventory, time: int, book = True) -> \
+            None:
         """
         Set a combined mission that starts with a loading mission, followed by a deliver mission
         :param drone:       Drone to set a mission
@@ -158,6 +169,7 @@ class Delivery:
         :param customer:    Customer to deliver products to
         :param order:       Order of products to load
         :param time:        Mission start time
+        :param book         Whether to book order at customer and warehouse in advance for future supply
         :return:
         """
         if drone in self.__mission:
@@ -165,7 +177,9 @@ class Delivery:
         self.__mission[drone] = Mission(
             MissionType.LoadAndDeliver, time, order, warehouse = warehouse, customer = customer)
         drone.refreshDroneStatus(time)      # Refresh drone status - sets drone clock to mission start time
-        warehouse.book(order)  # Book order at the warehouse to guarantee it will be there where the drone arrives
+        if book:
+            warehouse.book(order)  # Book order at the warehouse to guarantee it will be there where the drone arrives
+            customer.book(order)    # Book order delivery with customer, to avoid providing same products more than once
 
     def __command(self, drone: Drone) -> None:
         order = self.__mission[drone].order
@@ -222,26 +236,26 @@ class TestDelivery(unittest.TestCase):
         warehouseInventory.append(self.product0, 10)
         warehouseInventory.append(self.product1, 4)
         self.warehouse = Warehouse ((1, 1), warehouseInventory)
-        customerOrder = Order()
+        customerOrder = Inventory()
         customerOrder.append(self.product0, 3)
         self.customer = Customer((2, 3), customerOrder)
 
     def test_load(self):
-        nWarehouseBeforeLoad = self.warehouse.inventory.count(self.product1)
+        nWarehouseBeforeLoad = self.warehouse.order().count(self.product1)
         nDroneBeforeLoad = self.drone.inventory(0).count(self.product1)
-        productsToLoad = Order()
+        productsToLoad = Inventory()
         productsToLoad.append(self.product0, 3)
         productsToLoad.append(self.product1, 2)
         delivery = Delivery()
         delivery.setLoadMission(self.drone, self.warehouse, productsToLoad, 0)
         for time in range(4):
             delivery.sampleDrone(self.drone, time)
-        nWarehouseAfterLoad = self.warehouse.inventory.count(self.product1)
+        nWarehouseAfterLoad = self.warehouse.order().count(self.product1)
         nDroneAfterLoad = self.drone.inventory(14).count(self.product1)
         droneLocationAfterLoad = self.drone.location(14)
         self.assertEqual(nWarehouseAfterLoad, nWarehouseBeforeLoad - 2)
         self.assertEqual(nDroneBeforeLoad, nDroneAfterLoad - 2)
-        self.assertEqual(droneLocationAfterLoad, self.warehouse.location)
+        self.assertEqual(droneLocationAfterLoad, self.warehouse.location())
 
     def test_deliver(self):
         productsToDeliver = Inventory()
@@ -254,11 +268,11 @@ class TestDelivery(unittest.TestCase):
             delivery.sampleDrone(self.drone, time)
             time += 1
         self.assertEqual(self.drone.inventory(time).count(self.product0), 0)
-        self.assertEqual(self.drone.location(time), self.customer.location)
+        self.assertEqual(self.drone.location(time), self.customer.location())
 
     def test_load_and_deliver(self):
         delivery = Delivery()
-        productsToDeliver = Order()
+        productsToDeliver = Inventory()
         productsToDeliver.append(self.product0, 2)
         time = 0
         delivery.setLoadAndDeliverMission(self.drone, self.warehouse, self.customer, productsToDeliver, time)

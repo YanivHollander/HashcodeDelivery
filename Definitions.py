@@ -2,17 +2,24 @@ from typing import List, Tuple
 import unittest
 import numpy as np
 from scipy.spatial import distance as dst
-# Hello
+
 class Product:
     def __init__(self, index, weight):
         self.index = index      # Product distinctive index
         self.weight = weight    # Product weight
 
     def __repr__(self):
-        return {"index": self.index, 'weight': self.weight}
+        return repr((self.index, self.weight))
 
     def __str__(self):
         return "index = " + str(self.index) + ", weight = " + str(self.weight)
+
+    ## __eq__ and __hash__ based on index, for using class as a hashing key
+    def __eq__(self, other):
+        return self.index == other.index
+
+    def __hash__(self):
+        return hash(self.index)
 
 Products = List[Product]
 
@@ -24,7 +31,7 @@ def distance(orig: Location, dest: Location) -> int:
     :param dest: Destination in [c, r]
     :return: Distance in number of turns (Euclidean rounded up to nearest integer)
     """
-    return np.ceil(dst.euclidean(orig, dest))
+    return int(np.ceil(dst.euclidean(orig, dest)))
 
 class TestDefinition(unittest.TestCase):
     def setUp(self):
